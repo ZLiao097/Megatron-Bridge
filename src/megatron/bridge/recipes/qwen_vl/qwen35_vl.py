@@ -28,6 +28,7 @@ from megatron.bridge.recipes.common import _peft_common_vlm, _sft_common_vlm
 from megatron.bridge.recipes.utils.finetune_utils import default_peft_config
 from megatron.bridge.recipes.utils.optimizer_utils import distributed_fused_adam_with_cosine_annealing
 from megatron.bridge.training.config import ConfigContainer
+from megatron.bridge.recipes.common import _pretrain_common
 
 
 # =============================================================================
@@ -522,6 +523,285 @@ def qwen35_vl_27b_sft_config(hf_path: str = "Qwen/Qwen3.5-27B") -> ConfigContain
 
     return cfg
 
+
+# =============================================================================
+# Qwen3.5-VL 35B-A3B Pretrain Configuration (MoE)
+# =============================================================================
+def kimi25_vl_35b_a3b_pretrain_config(optimizer_type: str = "muon", hf_path: str = "/home2/j00648035/models/Kimi-K2.5-bf16") -> ConfigContainer:
+    """Return a full pretrain config for Qwen3.5-VL 35B-A3B (MoE).
+
+    Default configuration: 2 nodes, 16 GPUs
+    - TP=2, PP=1, EP=16
+    - LR=3e-4 (pretrain)
+    - Sequence length: 4096
+
+    Args:
+        hf_path: HuggingFace model ID or local path to model directory.
+    """
+    cfg = _pretrain_common()
+
+    # Model configuration
+    cfg.model = AutoBridge.from_hf_pretrained(hf_path, trust_remote_code=True).to_megatron_provider(load_weights=False)
+        # Model config - uses KimiK2Provider instead of AutoBridge
+    # from megatron.bridge.models.kimi_vl.kimi_k25_vl_provider import KimiK25VLModelProvider
+    # cfg.model = KimiK25VLModelProvider(
+    #     tensor_model_parallel_size=2,
+    #     pipeline_model_parallel_size=1,
+    #     pipeline_dtype=torch.bfloat16,
+    #     virtual_pipeline_model_parallel_size=None,
+    #     context_parallel_size=1,
+    #     expert_model_parallel_size=4,
+    #     sequence_parallel=True,
+    #     expert_tensor_parallel_size=1,
+    #     recompute_granularity="selective",
+    #     recompute_modules=None,
+    #     recompute_method=None,
+    #     recompute_num_layers=None,
+    # )
+    
+    # normal init
+    # from megatron.bridge.models.qwen_vl.qwen35_vl_provider import Qwen35VLMoEModelProvider
+    # cfg.model = Qwen35VLMoEModelProvider()
+    # cfg.model.num_layers = 8
+
+    # Tokenizer
+    cfg.tokenizer.tokenizer_model = "/home2/j00648035/models/Kimi-K2.5-bf16"
+    cfg.model.seq_length = 4096
+    # cfg.model.deterministic_mode = True
+    cfg.model.num_workers = 8
+    cfg.logger.log_interval = 1
+    cfg.model.use_flash_attn = True
+
+    # Parallel settings
+    cfg.model.tensor_model_parallel_size = 2
+    cfg.model.pipeline_model_parallel_size = 1
+    cfg.model.pipeline_dtype = torch.bfloat16
+    cfg.model.virtual_pipeline_model_parallel_size = None
+    cfg.model.expert_model_parallel_size = 4
+    cfg.model.expert_tensor_parallel_size = 1
+    cfg.model.context_parallel_size = 1
+    cfg.model.sequence_parallel = True
+
+    # VLM-specific settings
+    cfg.model.freeze_language_model = False
+    cfg.model.freeze_vision_model = False
+    cfg.model.freeze_vision_projection = False
+
+    # TE / Transformer implementation
+    cfg.model.transformer_impl = "transformer_engine"
+
+    # CUDA Graph settings
+    cfg.model.cuda_graph_impl = "none"
+    cfg.model.cuda_graph_scope = "full"
+    cfg.model.cuda_graph_warmup_steps = 3
+
+    # Kernel selections
+    cfg.model.attention_backend = "auto"
+    cfg.model.cross_entropy_loss_fusion = False
+    cfg.model.cross_entropy_fusion_impl = "native"
+
+    # MoE kernel selections
+    cfg.model.moe_router_fusion = False
+    cfg.model.moe_permute_fusion = False
+    cfg.model.moe_grouped_gemm = True
+
+    # Memory saving (disabled by default)
+    cfg.model.recompute_granularity = None
+    cfg.model.recompute_modules = None
+    cfg.model.fine_grained_activation_offloading = False
+    cfg.model.offload_modules = None
+
+    # MoE overlap
+    cfg.model.moe_shared_expert_overlap = False
+
+    # MoE force balance
+    cfg.model.moe_router_force_load_balancing = False
+
+    # MoE FP8 padding
+    cfg.model.moe_router_padding_for_fp8 = False
+
+    # Training config
+    cfg.train.train_iters = 3
+    cfg.train.global_batch_size = 8
+    cfg.train.micro_batch_size = 1
+    cfg.train.manual_gc = True
+    cfg.train.manual_gc_interval = 100
+    cfg.train.manual_gc_eval = 100
+
+    # Optimizer - higher LR for pretraining
+    opt_cfg, scheduler_cfg = distributed_fused_adam_with_cosine_annealing(
+        lr_warmup_iters=500,
+        lr_decay_iters=300000,
+        max_lr=3e-4,
+        min_lr=3e-5,
+    )
+    cfg.optimizer = opt_cfg
+    cfg.scheduler = scheduler_cfg
+
+    # Optimizer precision settings (disabled by default for full precision)
+    cfg.optimizer.use_precision_aware_optimizer = False
+    cfg.optimizer.main_grads_dtype = torch.float32
+    cfg.optimizer.main_params_dtype = torch.float32
+    cfg.optimizer.exp_avg_dtype = torch.float32
+    cfg.optimizer.exp_avg_sq_dtype = torch.float32
+
+    # Dataset configuration
+    cfg.dataset.seq_length = 4096
+    cfg.dataset.hf_processor_path = hf_path
+    cfg.dataset.pack_sequences_in_batch = False
+
+    # DDP settings
+    cfg.ddp.overlap_grad_reduce = False
+    cfg.ddp.overlap_param_gather = False
+    cfg.ddp.check_for_nan_in_grad = True
+    cfg.ddp.use_distributed_optimizer = True
+    cfg.ddp.grad_reduce_in_fp32 = True
+    cfg.ddp.average_in_collective = True
+    cfg.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+
+    # Comm overlap settings (MoE)
+    cfg.comm_overlap = None
+    # cfg.ckpt_cfg.ckpt_format = 'torch'
+    # FP8 and MXFP8 settings (disabled by default)
+    cfg.mixed_precision = "bf16_mixed"
+
+    # Test.
+    # cfg.checkpoint.load = "/home/y30067824/bridge_train/yzy/Megatron016/Megatron-Bridge/src/nemo_experiments/default/checkpoints/"
+    # cfg.checkpoint.load_main_params_from_ckpt = True
+    # cfg.checkpoint.finetune = True
+    return cfg
+
+
+# =============================================================================
+# Qwen3.5-VL 35B-A3B Pretrain Configuration (MoE)
+# =============================================================================
+def qwen35_vl_35b_a3b_pretrain_config(hf_path: str = "/home/y30067824/bridge_train/Qwen3.5-35B-A3B") -> ConfigContainer:
+    """Return a full pretrain config for Qwen3.5-VL 35B-A3B (MoE).
+
+    Default configuration: 2 nodes, 16 GPUs
+    - TP=2, PP=1, EP=16
+    - LR=3e-4 (pretrain)
+    - Sequence length: 4096
+
+    Args:
+        hf_path: HuggingFace model ID or local path to model directory.
+    """
+    cfg = _pretrain_common()
+
+    # Model configuration
+    cfg.model = AutoBridge.from_hf_pretrained(hf_path).to_megatron_provider(load_weights=False)
+    
+    # normal init
+    # from megatron.bridge.models.qwen_vl.qwen35_vl_provider import Qwen35VLMoEModelProvider
+    # cfg.model = Qwen35VLMoEModelProvider()
+    # cfg.model.num_layers = 8
+
+    # Tokenizer
+    cfg.tokenizer.tokenizer_model = "/home/y30067824/bridge_train/Qwen3.5-35B-A3B"
+    cfg.model.seq_length = 4096
+    # cfg.model.deterministic_mode = True
+    cfg.model.num_workers = 8
+    cfg.logger.log_interval = 1
+    cfg.model.use_flash_attn = True
+
+    # Parallel settings
+    cfg.model.tensor_model_parallel_size = 2
+    cfg.model.pipeline_model_parallel_size = 1
+    cfg.model.pipeline_dtype = torch.bfloat16
+    cfg.model.virtual_pipeline_model_parallel_size = None
+    cfg.model.expert_model_parallel_size = 4
+    cfg.model.expert_tensor_parallel_size = 1
+    cfg.model.context_parallel_size = 1
+    cfg.model.sequence_parallel = True
+
+    # VLM-specific settings
+    cfg.model.freeze_language_model = False
+    cfg.model.freeze_vision_model = False
+    cfg.model.freeze_vision_projection = False
+
+    # TE / Transformer implementation
+    cfg.model.transformer_impl = "transformer_engine"
+
+    # CUDA Graph settings
+    cfg.model.cuda_graph_impl = "none"
+    cfg.model.cuda_graph_scope = "full"
+    cfg.model.cuda_graph_warmup_steps = 3
+
+    # Kernel selections
+    cfg.model.attention_backend = "auto"
+    cfg.model.cross_entropy_loss_fusion = False
+    cfg.model.cross_entropy_fusion_impl = "native"
+
+    # MoE kernel selections
+    cfg.model.moe_router_fusion = False
+    cfg.model.moe_permute_fusion = False
+    cfg.model.moe_grouped_gemm = True
+
+    # Memory saving (disabled by default)
+    cfg.model.recompute_granularity = None
+    cfg.model.recompute_modules = None
+    cfg.model.fine_grained_activation_offloading = False
+    cfg.model.offload_modules = None
+
+    # MoE overlap
+    cfg.model.moe_shared_expert_overlap = False
+
+    # MoE force balance
+    cfg.model.moe_router_force_load_balancing = False
+
+    # MoE FP8 padding
+    cfg.model.moe_router_padding_for_fp8 = False
+
+    # Training config
+    cfg.train.train_iters = 3
+    cfg.train.global_batch_size = 8
+    cfg.train.micro_batch_size = 1
+    cfg.train.manual_gc = True
+    cfg.train.manual_gc_interval = 100
+    cfg.train.manual_gc_eval = 100
+
+    # Optimizer - higher LR for pretraining
+    opt_cfg, scheduler_cfg = distributed_fused_adam_with_cosine_annealing(
+        lr_warmup_iters=500,
+        lr_decay_iters=300000,
+        max_lr=3e-4,
+        min_lr=3e-5,
+    )
+    cfg.optimizer = opt_cfg
+    cfg.scheduler = scheduler_cfg
+
+    # Optimizer precision settings (disabled by default for full precision)
+    cfg.optimizer.use_precision_aware_optimizer = False
+    cfg.optimizer.main_grads_dtype = torch.float32
+    cfg.optimizer.main_params_dtype = torch.float32
+    cfg.optimizer.exp_avg_dtype = torch.float32
+    cfg.optimizer.exp_avg_sq_dtype = torch.float32
+
+    # Dataset configuration
+    cfg.dataset.seq_length = 4096
+    cfg.dataset.hf_processor_path = hf_path
+    cfg.dataset.pack_sequences_in_batch = False
+
+    # DDP settings
+    cfg.ddp.overlap_grad_reduce = False
+    cfg.ddp.overlap_param_gather = False
+    cfg.ddp.check_for_nan_in_grad = True
+    cfg.ddp.use_distributed_optimizer = True
+    cfg.ddp.grad_reduce_in_fp32 = True
+    cfg.ddp.average_in_collective = True
+    cfg.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+
+    # Comm overlap settings (MoE)
+    cfg.comm_overlap = None
+    # cfg.ckpt_cfg.ckpt_format = 'torch'
+    # FP8 and MXFP8 settings (disabled by default)
+    cfg.mixed_precision = "bf16_mixed"
+
+    # Test.
+    cfg.checkpoint.load = "/home/y30067824/bridge_train/yzy/Megatron016/Megatron-Bridge/src/nemo_experiments/default/checkpoints/"
+    # cfg.checkpoint.load_main_params_from_ckpt = True
+    # cfg.checkpoint.finetune = True
+    return cfg
 
 # =============================================================================
 # Qwen3.5-VL 35B-A3B SFT Configuration (MoE)

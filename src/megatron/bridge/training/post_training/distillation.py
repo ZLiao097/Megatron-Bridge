@@ -14,56 +14,56 @@
 
 from typing import Callable
 
-import modelopt.torch.distill as mtd
-import modelopt.torch.distill.plugins.megatron as mtd_mcore
+# import modelopt.torch.distill as mtd
+# import modelopt.torch.distill.plugins.megatron as mtd_mcore
 import torch
 from megatron.core import parallel_state
 from megatron.core.transformer import MegatronModule
 
 
-class ModelOptDistillConfig(mtd_mcore.DistillationConfig):
-    """Configuration settings for Model Optimizer distillation."""
+# class ModelOptDistillConfig(mtd_mcore.DistillationConfig):
+#     """Configuration settings for Model Optimizer distillation."""
 
-    pass
+#     pass
 
 
-def loss_func_kd(
-    output_tensor: torch.Tensor, loss_mask: torch.Tensor, original_loss_fn: Callable, model: MegatronModule
-):
-    """Loss function (with KD Loss support).
+# def loss_func_kd(
+#     output_tensor: torch.Tensor, loss_mask: torch.Tensor, original_loss_fn: Callable, model: MegatronModule
+# ):
+#     """Loss function (with KD Loss support).
 
-    Args:
-        output_tensor (Tensor): The tensor with the losses
-        loss_mask (Tensor): Used to mask out some portions of the loss
-        original_loss_fn (Callable): The original loss function
-        model (GPTModel): The model (can be wrapped)
-    """
-    assert isinstance(model, mtd.DistillationModel), "Model must be a ModelOpt DistillationModel"
+#     Args:
+#         output_tensor (Tensor): The tensor with the losses
+#         loss_mask (Tensor): Used to mask out some portions of the loss
+#         original_loss_fn (Callable): The original loss function
+#         model (GPTModel): The model (can be wrapped)
+#     """
+#     assert isinstance(model, mtd.DistillationModel), "Model must be a ModelOpt DistillationModel"
 
-    # Standard lm loss
-    loss_lm, num_tokens, report = original_loss_fn(output_tensor)
+#     # Standard lm loss
+#     loss_lm, num_tokens, report = original_loss_fn(output_tensor)
 
-    # Handle knowledge distillation
-    losses_kd = model.compute_kd_loss(
-        student_loss=loss_lm,
-        loss_reduction_fn=lambda x: _mask_loss(x, loss_mask),
-    )
+#     # Handle knowledge distillation
+#     losses_kd = model.compute_kd_loss(
+#         student_loss=loss_lm,
+#         loss_reduction_fn=lambda x: _mask_loss(x, loss_mask),
+#     )
 
-    report["total loss"] = torch.cat([losses_kd["kd_loss"].clone().detach().view(1), num_tokens.view(1)])
-    report["logits distillation loss"] = torch.cat(
-        [losses_kd["logits_loss"].clone().detach().view(1), num_tokens.view(1)]
-    )
-    report["intermediate distillation loss"] = torch.cat(
-        [losses_kd["intermediate_loss"].clone().detach().view(1), num_tokens.view(1)]
-    )
+#     report["total loss"] = torch.cat([losses_kd["kd_loss"].clone().detach().view(1), num_tokens.view(1)])
+#     report["logits distillation loss"] = torch.cat(
+#         [losses_kd["logits_loss"].clone().detach().view(1), num_tokens.view(1)]
+#     )
+#     report["intermediate distillation loss"] = torch.cat(
+#         [losses_kd["intermediate_loss"].clone().detach().view(1), num_tokens.view(1)]
+#     )
 
-    # Validation loss remains unchanged
-    if model.training:
-        loss = losses_kd["kd_loss"]
-    else:
-        loss = loss_lm
+#     # Validation loss remains unchanged
+#     if model.training:
+#         loss = losses_kd["kd_loss"]
+#     else:
+#         loss = loss_lm
 
-    return loss, num_tokens, report
+#     return loss, num_tokens, report
 
 
 def _mask_loss(output_tensor: torch.Tensor, loss_mask: torch.Tensor):

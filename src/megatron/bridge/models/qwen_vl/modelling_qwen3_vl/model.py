@@ -288,7 +288,7 @@ class Qwen3VLModel(MegatronModule):
         # position ids is computed within the model
         position_ids = None
 
-        torch.cuda.nvtx.range_push("Qwen3VLModel.forward.pre_process")
+        # torch.cuda.nvtx.range_push("Qwen3VLModel.forward.pre_process")
 
         cp_rank = self.pg_collection.cp.rank()
         cp_size = self.pg_collection.cp.size()
@@ -478,8 +478,8 @@ class Qwen3VLModel(MegatronModule):
                 attention_mask = None
                 self.language_model.rotary_pos_emb.is_thd_format = True
 
-        torch.cuda.nvtx.range_pop()
-        torch.cuda.nvtx.range_push("Qwen3VLModel.forward.language_model")
+        # torch.cuda.nvtx.range_pop()
+        # torch.cuda.nvtx.range_push("Qwen3VLModel.forward.language_model")
 
         output = self.language_model(
             input_ids=None,
@@ -495,6 +495,6 @@ class Qwen3VLModel(MegatronModule):
             **(extra_block_kwargs or {}),
             **kwargs,
         )
-        torch.cuda.nvtx.range_pop()
+        # torch.cuda.nvtx.range_pop()
 
         return output

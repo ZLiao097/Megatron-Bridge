@@ -47,7 +47,7 @@ def llama32_1b_pretrain_config() -> ConfigContainer:
     cfg = _pretrain_common()
 
     # Model config
-    cfg.model = AutoBridge.from_hf_pretrained("meta-llama/Llama-3.2-1B").to_megatron_provider(load_weights=False)
+    cfg.model = AutoBridge.from_hf_pretrained("/home/yzy/Megatron016/Llama-3.2-1B").to_megatron_provider(load_weights=False)
 
     # Tokenizer - uses NullTokenizer by default
     cfg.tokenizer.tokenizer_type = "NullTokenizer"
@@ -70,7 +70,8 @@ def llama32_1b_pretrain_config() -> ConfigContainer:
     cfg.model.seq_length = 8192
 
     # Training config
-    cfg.train.train_iters = 1168251
+    cfg.logger.log_interval = 1
+    cfg.train.train_iters = 10
     cfg.train.global_batch_size = 512
     cfg.train.micro_batch_size = 1
     cfg.validation.eval_interval = 2000
@@ -85,6 +86,7 @@ def llama32_1b_pretrain_config() -> ConfigContainer:
 
     # TE (Transformer Engine)
     cfg.model.transformer_impl = "transformer_engine"
+    cfg.model.use_flash_attn = True
 
     # CUDA Graph
     cfg.model.cuda_graph_impl = "none"
@@ -94,7 +96,7 @@ def llama32_1b_pretrain_config() -> ConfigContainer:
     # Kernel selections
     cfg.model.attention_backend = None
     cfg.model.cross_entropy_loss_fusion = True
-    cfg.model.cross_entropy_fusion_impl = "te"
+    cfg.model.cross_entropy_fusion_impl = "native"
 
     # Memory saving (recompute & offloading)
     cfg.model.recompute_granularity = None
@@ -162,7 +164,7 @@ def llama32_3b_pretrain_config() -> ConfigContainer:
     cfg.model.sequence_parallel = False
     cfg.model.seq_length = 8192
 
-    cfg.train.train_iters = 1168251
+    cfg.train.train_iters = 10
     cfg.train.global_batch_size = 512
     cfg.train.micro_batch_size = 1
     cfg.validation.eval_interval = 2000

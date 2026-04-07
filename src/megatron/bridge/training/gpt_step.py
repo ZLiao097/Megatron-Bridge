@@ -16,7 +16,7 @@ import logging
 from functools import partial
 from typing import Iterable
 
-import modelopt.torch.distill as mtd
+# import modelopt.torch.distill as mtd
 import torch
 from megatron.core import parallel_state
 from megatron.core.models.gpt import GPTModel
@@ -30,7 +30,7 @@ from megatron.core.utils import (
 
 from megatron.bridge.training.config import ConfigContainer
 from megatron.bridge.training.losses import masked_next_token_loss
-from megatron.bridge.training.post_training.distillation import loss_func_kd
+# from megatron.bridge.training.post_training.distillation import loss_func_kd
 from megatron.bridge.training.state import GlobalState
 from megatron.bridge.training.utils.packed_seq_utils import get_packed_seq_params
 from megatron.bridge.training.utils.pg_utils import get_pg_collection
@@ -315,57 +315,57 @@ def _create_loss_function(loss_mask: torch.Tensor, check_for_nan_in_loss: bool, 
     )
 
 
-def forward_step_modelopt(
-    state: GlobalState, data_iterator: Iterable, model: GPTModel, return_schedule_plan: bool = False
-) -> tuple[torch.Tensor, partial]:
-    """Forward training step with ModelOpt required modifications.
+# def forward_step_modelopt(
+#     state: GlobalState, data_iterator: Iterable, model: GPTModel, return_schedule_plan: bool = False
+# ) -> tuple[torch.Tensor, partial]:
+#     """Forward training step with ModelOpt required modifications.
 
-    Args:
-        state: Global state for the run
-        data_iterator: Input data iterator
-        model: The GPT Model
-        return_schedule_plan (bool): Whether to return the schedule plan instead of the output tensor
+#     Args:
+#         state: Global state for the run
+#         data_iterator: Input data iterator
+#         model: The GPT Model
+#         return_schedule_plan (bool): Whether to return the schedule plan instead of the output tensor
 
-    Returns:
-        tuple containing the output tensor and the loss function
-    """
-    output, loss_mask = _forward_step_common(state, data_iterator, model, return_schedule_plan)
+#     Returns:
+#         tuple containing the output tensor and the loss function
+#     """
+#     output, loss_mask = _forward_step_common(state, data_iterator, model, return_schedule_plan)
 
-    loss_function = _create_loss_function_modelopt(
-        loss_mask,
-        model,
-        check_for_nan_in_loss=state.cfg.rerun_state_machine.check_for_nan_in_loss,
-        check_for_spiky_loss=state.cfg.rerun_state_machine.check_for_spiky_loss,
-    )
+#     loss_function = _create_loss_function_modelopt(
+#         loss_mask,
+#         model,
+#         check_for_nan_in_loss=state.cfg.rerun_state_machine.check_for_nan_in_loss,
+#         check_for_spiky_loss=state.cfg.rerun_state_machine.check_for_spiky_loss,
+#     )
 
-    return output, loss_function
+#     return output, loss_function
 
 
-def _create_loss_function_modelopt(
-    loss_mask: torch.Tensor, model: GPTModel, check_for_nan_in_loss: bool, check_for_spiky_loss: bool
-) -> partial:
-    """Create a partial loss function with the specified configuration.
+# def _create_loss_function_modelopt(
+#     loss_mask: torch.Tensor, model: GPTModel, check_for_nan_in_loss: bool, check_for_spiky_loss: bool
+# ) -> partial:
+#     """Create a partial loss function with the specified configuration.
 
-    Kept here for backward compatibility with tests and callers that patch
-    `megatron.bridge.training.gpt_step.masked_next_token_loss`.
+#     Kept here for backward compatibility with tests and callers that patch
+#     `megatron.bridge.training.gpt_step.masked_next_token_loss`.
 
-    Args:
-        loss_mask: Used to mask out some portions of the loss
-        model: The GPT Model
-        check_for_nan_in_loss: Whether to check for NaN values in the loss
-        check_for_spiky_loss: Whether to check for spiky loss values
+#     Args:
+#         loss_mask: Used to mask out some portions of the loss
+#         model: The GPT Model
+#         check_for_nan_in_loss: Whether to check for NaN values in the loss
+#         check_for_spiky_loss: Whether to check for spiky loss values
 
-    Returns:
-        A partial function that can be called with output_tensor to compute the loss
-    """
-    mnt_loss_func = partial(
-        masked_next_token_loss,
-        loss_mask,
-        check_for_nan_in_loss=check_for_nan_in_loss,
-        check_for_spiky_loss=check_for_spiky_loss,
-    )
-    unwrapped_model = unwrap_model(model)
-    if isinstance(unwrapped_model, mtd.DistillationModel):
-        return partial(loss_func_kd, loss_mask=loss_mask, original_loss_fn=mnt_loss_func, model=unwrapped_model)
-    else:
-        return mnt_loss_func
+#     Returns:
+#         A partial function that can be called with output_tensor to compute the loss
+#     """
+#     mnt_loss_func = partial(
+#         masked_next_token_loss,
+#         loss_mask,
+#         check_for_nan_in_loss=check_for_nan_in_loss,
+#         check_for_spiky_loss=check_for_spiky_loss,
+#     )
+#     unwrapped_model = unwrap_model(model)
+#     if isinstance(unwrapped_model, mtd.DistillationModel):
+#         return partial(loss_func_kd, loss_mask=loss_mask, original_loss_fn=mnt_loss_func, model=unwrapped_model)
+#     else:
+#         return mnt_loss_func

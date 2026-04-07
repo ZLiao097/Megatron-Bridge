@@ -21,7 +21,7 @@ Public API re-exports:
 - Collate fns: model-specific batch builders
 """
 
-from megatron.bridge.data.energon.energon_provider import EnergonProvider
+# from megatron.bridge.data.energon.energon_provider import EnergonProvider
 from megatron.bridge.data.vlm_datasets.collate import (
     COLLATE_FNS,
     default_collate_fn,

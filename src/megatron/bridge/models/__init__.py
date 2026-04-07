@@ -75,6 +75,14 @@ from megatron.bridge.models.gpt_oss import (
     GPTOSSProvider120B,
 )
 from megatron.bridge.models.gpt_provider import GPTModelProvider
+from megatron.bridge.models.kimi import (
+    KimiK2Provider,
+)
+from megatron.bridge.models.kimi_vl import (
+    KimiK25VLBridge,
+    KimiK25VLModelProvider,
+    KimiK25VLModel,
+)
 from megatron.bridge.models.llama import (
     CodeLlamaModelProvider7B,
     CodeLlamaModelProvider13B,
@@ -105,7 +113,7 @@ from megatron.bridge.models.llama_nemotron import (
     LlamaNemotronBridge,
     LlamaNemotronHeterogeneousProvider,
 )
-from megatron.bridge.models.mamba.mamba_provider import MambaModelProvider
+# from megatron.bridge.models.mamba.mamba_provider import MambaModelProvider
 from megatron.bridge.models.mimo.mimo_bridge import MimoBridge
 from megatron.bridge.models.ministral3 import (
     Ministral3Bridge,
@@ -128,12 +136,12 @@ from megatron.bridge.models.nemotron import (
     NemotronBridge,
     NemotronModelProvider,
 )
-from megatron.bridge.models.nemotron_vl import (
-    NemotronNano12Bv2Provider,
-    NemotronNano12Bv2VLModelProvider,
-    NemotronVLBridge,
-    NemotronVLModel,
-)
+# from megatron.bridge.models.nemotron_vl import (
+#     NemotronNano12Bv2Provider,
+#     NemotronNano12Bv2VLModelProvider,
+#     NemotronVLBridge,
+#     NemotronVLModel,
+# )
 from megatron.bridge.models.nemotronh.nemotron_h_provider import (
     Nemotron3NanoProvider,
     NemotronHModel4BProvider,
@@ -238,6 +246,10 @@ __all__ = [
     "GPTOSSProvider20B",
     "GPTOSSProvider120B",
     "T5ModelProvider",
+    "KimiK2Provider",
+    "KimiK25VLModel",
+    "KimiK25VLBridge",
+    "KimiK25VLModelProvider",
     "LlamaModelProvider",
     "Llama2ModelProvider7B",
     "Llama2ModelProvider13B",

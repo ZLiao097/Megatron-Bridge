@@ -22,7 +22,7 @@ import torch.distributed as dist
 import transformers
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.transformer_config import MLATransformerConfig, TransformerConfig
-from modelopt.torch.quantization.utils import is_quantized
+# from modelopt.torch.quantization.utils import is_quantized
 from transformers.configuration_utils import PretrainedConfig
 from typing_extensions import Unpack
 
@@ -233,7 +233,7 @@ class AutoBridge(Generic[MegatronModelT]):
         """
         # First load just the config to check architecture support
         # Use thread-safe config loading to prevent race conditions
-        config = safe_load_config_with_retry(path, trust_remote_code=kwargs.get("trust_remote_code", False))
+        config = safe_load_config_with_retry(path, trust_remote_code=kwargs.get("trust_remote_code", True))
 
         cls._validate_config(config, str(path))
 
@@ -503,109 +503,109 @@ class AutoBridge(Generic[MegatronModelT]):
             save_every_n_ranks=save_every_n_ranks,
         )
 
-    def save_hf_weights(
-        self,
-        model: list[MegatronModelT],
-        path: str | Path,
-        show_progress: bool = True,
-        strict: bool = True,
-        merge_adapter_weights: bool = True,
-        distributed_save: bool = False,
-        save_every_n_ranks: int = 1,
-    ) -> None:
-        """
-        Save Megatron model weights in HuggingFace safetensors format.
+    # def save_hf_weights(
+    #     self,
+    #     model: list[MegatronModelT],
+    #     path: str | Path,
+    #     show_progress: bool = True,
+    #     strict: bool = True,
+    #     merge_adapter_weights: bool = True,
+    #     distributed_save: bool = False,
+    #     save_every_n_ranks: int = 1,
+    # ) -> None:
+    #     """
+    #     Save Megatron model weights in HuggingFace safetensors format.
 
-        This method exports only the model weights (not configuration or tokenizer)
-        to safetensors files compatible with HuggingFace. It uses streaming save
-        to handle large models efficiently without requiring all weights in memory
-        at once.
+    #     This method exports only the model weights (not configuration or tokenizer)
+    #     to safetensors files compatible with HuggingFace. It uses streaming save
+    #     to handle large models efficiently without requiring all weights in memory
+    #     at once.
 
-        If the model contains LoRA adapters, they will be automatically merged
-        into the base weights before saving. This ensures the saved weights
-        contain the full fine-tuned parameters.
+    #     If the model contains LoRA adapters, they will be automatically merged
+    #     into the base weights before saving. This ensures the saved weights
+    #     contain the full fine-tuned parameters.
 
-        The weights are gathered from distributed ranks and saved in the standard
-        HuggingFace sharded format when the model is large.
+    #     The weights are gathered from distributed ranks and saved in the standard
+    #     HuggingFace sharded format when the model is large.
 
-        Args:
-            model: Megatron model instance or list of instances
-            path: Directory path where weight files will be saved
-            show_progress: Display progress bar during export
-            merge_adapter_weights: Whether to gather/merge LoRA adapter weights into base tensors during export.
-            distributed_save: Whether to enable distributed saving mode where each rank saves
-                part of weights independently.
-            save_every_n_ranks: Interval for saving weights across ranks in distributed mode.
-                For example, if set to 2, only ranks 0, 2, 4, ... will save weights.
+    #     Args:
+    #         model: Megatron model instance or list of instances
+    #         path: Directory path where weight files will be saved
+    #         show_progress: Display progress bar during export
+    #         merge_adapter_weights: Whether to gather/merge LoRA adapter weights into base tensors during export.
+    #         distributed_save: Whether to enable distributed saving mode where each rank saves
+    #             part of weights independently.
+    #         save_every_n_ranks: Interval for saving weights across ranks in distributed mode.
+    #             For example, if set to 2, only ranks 0, 2, 4, ... will save weights.
 
-        Raises:
-            ValueError: If the state source doesn't support streaming save
+    #     Raises:
+    #         ValueError: If the state source doesn't support streaming save
 
-        Example:
-            >>> # Save just the weights
-            >>> bridge.save_hf_weights(megatron_model, "./model_weights")
+    #     Example:
+    #         >>> # Save just the weights
+    #         >>> bridge.save_hf_weights(megatron_model, "./model_weights")
 
-            >>> # Save without progress bar (useful in scripts)
-            >>> bridge.save_hf_weights(megatron_model, "./weights", show_progress=False)
+    #         >>> # Save without progress bar (useful in scripts)
+    #         >>> bridge.save_hf_weights(megatron_model, "./weights", show_progress=False)
 
-        Note:
-            - This method is collective and must be called by all ranks
-            - Uses safetensors format for efficient loading and security
-            - Automatically handles model sharding for large models
-            - The saved weights can be loaded with HuggingFace's from_pretrained
-        """
-        if dist.is_available() and dist.is_initialized():
-            dist.barrier()
-        dispatch_instance = (self._causal_lm_architecture, self._get_model_instance(model))
-        generator = model_bridge.stream_weights_megatron_to_hf(
-            dispatch_instance,
-            model,
-            self.hf_pretrained,
-            cpu=True,
-            show_progress=show_progress,
-            merge_adapter_weights=merge_adapter_weights,
-        )
-        model_instance = self._get_model_instance(model)
-        quant_tensors = None
-        if is_quantized(model_instance):
-            quant_tensors = {}
+    #     Note:
+    #         - This method is collective and must be called by all ranks
+    #         - Uses safetensors format for efficient loading and security
+    #         - Automatically handles model sharding for large models
+    #         - The saved weights can be loaded with HuggingFace's from_pretrained
+    #     """
+    #     if dist.is_available() and dist.is_initialized():
+    #         dist.barrier()
+    #     dispatch_instance = (self._causal_lm_architecture, self._get_model_instance(model))
+    #     generator = model_bridge.stream_weights_megatron_to_hf(
+    #         dispatch_instance,
+    #         model,
+    #         self.hf_pretrained,
+    #         cpu=True,
+    #         show_progress=show_progress,
+    #         merge_adapter_weights=merge_adapter_weights,
+    #     )
+    #     model_instance = self._get_model_instance(model)
+    #     quant_tensors = None
+    #     if is_quantized(model_instance):
+    #         quant_tensors = {}
 
-            def _filter_quant(gen):
-                for name, tensor in gen:
-                    if "_quantizer." in name:
-                        quant_tensors[name] = tensor
-                        continue
-                    yield name, tensor
+    #         def _filter_quant(gen):
+    #             for name, tensor in gen:
+    #                 if "_quantizer." in name:
+    #                     quant_tensors[name] = tensor
+    #                     continue
+    #                 yield name, tensor
 
-            generator = _filter_quant(generator)
+    #         generator = _filter_quant(generator)
 
-        # Check if the state source is SafeTensorsStateSource for streaming save.
-        if (
-            hasattr(self.hf_pretrained, "state")
-            and hasattr(self.hf_pretrained.state, "source")
-            and isinstance(self.hf_pretrained.state.source, SafeTensorsStateSource)
-        ):
-            self.hf_pretrained.state.source.save_generator(
-                generator,
-                path,
-                strict=strict,
-                distributed_save=distributed_save,
-                save_every_n_ranks=save_every_n_ranks,
-            )
-        else:
-            raise ValueError("The state source is not a SafeTensorsStateSource, cannot save in streaming mode.")
+    #     # Check if the state source is SafeTensorsStateSource for streaming save.
+    #     if (
+    #         hasattr(self.hf_pretrained, "state")
+    #         and hasattr(self.hf_pretrained.state, "source")
+    #         and isinstance(self.hf_pretrained.state.source, SafeTensorsStateSource)
+    #     ):
+    #         self.hf_pretrained.state.source.save_generator(
+    #             generator,
+    #             path,
+    #             strict=strict,
+    #             distributed_save=distributed_save,
+    #             save_every_n_ranks=save_every_n_ranks,
+    #         )
+    #     else:
+    #         raise ValueError("The state source is not a SafeTensorsStateSource, cannot save in streaming mode.")
 
-        # Save quantizer/amax sidecar after the main generator is consumed (rank 0 only).
-        if quant_tensors:
-            is_distributed = dist.is_available() and dist.is_initialized()
-            rank = dist.get_rank() if is_distributed else 0
-            if rank == 0 and quant_tensors:
-                sidecar_path = Path(path) / "modelopt_weights.pt"
-                sidecar_path.parent.mkdir(parents=True, exist_ok=True)
-                torch.save(quant_tensors, sidecar_path)
+    #     # Save quantizer/amax sidecar after the main generator is consumed (rank 0 only).
+    #     if quant_tensors:
+    #         is_distributed = dist.is_available() and dist.is_initialized()
+    #         rank = dist.get_rank() if is_distributed else 0
+    #         if rank == 0 and quant_tensors:
+    #             sidecar_path = Path(path) / "modelopt_weights.pt"
+    #             sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+    #             torch.save(quant_tensors, sidecar_path)
 
-        if dist.is_available() and dist.is_initialized():
-            dist.barrier()
+    #     if dist.is_available() and dist.is_initialized():
+    #         dist.barrier()
 
     def save_megatron_model(
         self,
@@ -788,9 +788,13 @@ class AutoBridge(Generic[MegatronModelT]):
         megatron_model = bridge.to_megatron_model(wrap_with_ddp=False, use_cpu_initialization=True)
 
         # Save as Megatron checkpoint
-        hf_tokenizer_kwargs = None
+        # hf_tokenizer_kwargs = None
+        hf_tokenizer_kwargs = {}
         if hasattr(bridge._model_bridge, "get_hf_tokenizer_kwargs"):
             hf_tokenizer_kwargs = bridge._model_bridge.get_hf_tokenizer_kwargs()
+        # Pass trust_remote_code to tokenizer if provided in kwargs
+        if kwargs.get("trust_remote_code"):
+            hf_tokenizer_kwargs["trust_remote_code"] = True
         bridge.save_megatron_model(
             megatron_model,
             megatron_path,
