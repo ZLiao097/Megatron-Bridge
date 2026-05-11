@@ -174,10 +174,10 @@ class Qwen3VLModel(MegatronModule):
 
         self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
 
-        if self.pg_collection.cp.size() > 1:
-            assert self.config.calculate_per_token_loss, (
-                "Qwen3-VL model only supports context parallelism with calculate_per_token_loss enabled"
-            )
+        # if self.pg_collection.cp.size() > 1:
+        #     assert self.config.calculate_per_token_loss, (
+        #         "Qwen3-VL model only supports context parallelism with calculate_per_token_loss enabled"
+        #     )
 
     def shared_embedding_or_output_weight(self):
         """This is a convenience method to surface the language model's word embeddings, which is
@@ -288,7 +288,7 @@ class Qwen3VLModel(MegatronModule):
         # position ids is computed within the model
         position_ids = None
 
-        torch.cuda.nvtx.range_push("Qwen3VLModel.forward.pre_process")
+        # torch.cuda.nvtx.range_push("Qwen3VLModel.forward.pre_process")
 
         cp_rank = self.pg_collection.cp.rank()
         cp_size = self.pg_collection.cp.size()
@@ -360,7 +360,9 @@ class Qwen3VLModel(MegatronModule):
                             seqlen_on_cp_ranks,
                             cp_group=self.pg_collection.cp,
                         )
-
+            # if torch.distributed.get_rank() == 0:
+            #     breakpoint()
+            # torch.distributed.barrier()
             combined_embeddings = self.language_model.embedding(
                 input_ids=input_ids,
                 position_ids=None,  # NOTE: disable
@@ -450,7 +452,9 @@ class Qwen3VLModel(MegatronModule):
                     cp_rank=0,
                     sequence_parallel=self.config.sequence_parallel,
                 )
-
+        # if torch.distributed.get_rank() == 0:
+        #     breakpoint()
+        # torch.distributed.barrier()
         if position_ids is None:
             # BSHD
             position_ids, _ = get_rope_index(
@@ -478,8 +482,8 @@ class Qwen3VLModel(MegatronModule):
                 attention_mask = None
                 self.language_model.rotary_pos_emb.is_thd_format = True
 
-        torch.cuda.nvtx.range_pop()
-        torch.cuda.nvtx.range_push("Qwen3VLModel.forward.language_model")
+        # torch.cuda.nvtx.range_pop()
+        # torch.cuda.nvtx.range_push("Qwen3VLModel.forward.language_model")
 
         output = self.language_model(
             input_ids=None,
@@ -495,6 +499,6 @@ class Qwen3VLModel(MegatronModule):
             **(extra_block_kwargs or {}),
             **kwargs,
         )
-        torch.cuda.nvtx.range_pop()
+        # torch.cuda.nvtx.range_pop()
 
         return output

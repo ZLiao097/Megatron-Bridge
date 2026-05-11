@@ -234,7 +234,22 @@ def split_deepstack_embs(
         return visual_pos_masks, deepstack_visual_embeds
 
     assert visual_pos_masks.dim() == 2
-    assert visual_pos_masks.shape[-1] % split_size == 0
+    # assert visual_pos_masks.shape[-1] % split_size == 0
+    # assert visual_pos_masks.shape[-1] % split_size == 0
+
+    pad_len = (split_size - visual_pos_masks.shape[-1] % split_size) % split_size
+    if pad_len > 0:
+        visual_pos_masks = torch.cat([
+            visual_pos_masks,
+            torch.zeros(visual_pos_masks.shape[0], pad_len, dtype=visual_pos_masks.dtype, device=visual_pos_masks.device)
+        ], dim=-1)
+        for i in range(len(deepstack_visual_embeds)):
+            deepstack_visual_embeds[i] = torch.cat([
+                deepstack_visual_embeds[i],
+                torch.zeros(pad_len, deepstack_visual_embeds[i].shape[-1],
+                           dtype=deepstack_visual_embeds[i].dtype, device=deepstack_visual_embeds[i].device)
+            ], dim=0)
+
     batch_size = visual_pos_masks.size(0)
 
     cp_tp_part_list = split_part_by_cp_tp(cp_size, cp_rank, tp_size, tp_rank, split_size)
